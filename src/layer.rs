@@ -1,13 +1,14 @@
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result as AnyResult;
 use rand::prelude::*;
 use serde_json::{json, Value};
+use tokio::time::{Duration, Instant};
 use tracing::{
     span::{Attributes, Record},
     Event, Id, Level, Subscriber,
 };
-use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
+use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 use crate::{
     apm_client::{ApmClient, Batch},
