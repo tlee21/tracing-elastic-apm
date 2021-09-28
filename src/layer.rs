@@ -189,13 +189,15 @@ where
         // span_ctx.duration += timestamp.saturating_duration_since(span_ctx.last_timestamp);
 
         if timestamp < span_ctx.last_timestamp {
-            panic!(
+            println!(
                 "Newer timestamp is older. old: {:?}, new: {:?}",
                 span_ctx.last_timestamp, timestamp
             );
         }
 
         span_ctx.duration += timestamp - span_ctx.last_timestamp;
+
+        println!("Finished setting duration");
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
