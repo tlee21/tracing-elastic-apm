@@ -1,3 +1,4 @@
+use core::time;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result as AnyResult;
@@ -182,7 +183,14 @@ where
             .get_mut::<SpanContext>()
             .expect("Span context not found!");
 
-        span_ctx.duration += Duration::from_secs(1u64); //timestamp - span_ctx.last_timestamp;
+        if timestamp < span_ctx.last_timestamp {
+            panic!(
+                "Newer timestamp is older. old: {:?}, new: {:?}",
+                span_ctx.last_timestamp, timestamp
+            );
+        }
+
+        span_ctx.duration += timestamp - span_ctx.last_timestamp;
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
