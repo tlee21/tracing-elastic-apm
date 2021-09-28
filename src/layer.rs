@@ -44,6 +44,7 @@ where
             .unwrap()
             .as_micros() as u64;
         let timestamp = Instant::now();
+        println!("New span!!!! timestamp: {:?}", timestamp);
 
         let span = ctx.span(id).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
@@ -172,6 +173,8 @@ where
             .expect("Span context not found!");
 
         span_ctx.last_timestamp = Instant::now();
+
+        println!("On Enter!!!! timestamp: {:?}", span_ctx.last_timestamp);
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
@@ -182,6 +185,8 @@ where
         let span_ctx = extensions
             .get_mut::<SpanContext>()
             .expect("Span context not found!");
+
+        // span_ctx.duration += timestamp.saturating_duration_since(span_ctx.last_timestamp);
 
         if timestamp < span_ctx.last_timestamp {
             panic!(
