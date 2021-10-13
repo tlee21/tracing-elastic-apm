@@ -1,13 +1,14 @@
 use std::{
     fmt::{Display, Formatter, Result},
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use anyhow::Result as AnyResult;
-use std::io::Read;
 use reqwest::{header, Client};
 use serde_json::{json, Value};
+use std::io::Read;
+use tokio::time::{sleep, Duration};
 use tracing::*;
 
 use crate::config::Authorization;
@@ -56,9 +57,7 @@ impl Batch {
 }
 
 pub(crate) struct ApmClient {
-    apm_address: Arc<String>,
-    authorization: Option<Arc<String>>,
-    client: Client,
+    buffer: Arc<Mutex<Vec<Batch>>>,
 }
 
 impl ApmClient {
@@ -66,19 +65,18 @@ impl ApmClient {
         apm_address: String,
         authorization: Option<Authorization>,
         allow_invalid_certs: bool,
-        root_cert_path: Option<String>
+        root_cert_path: Option<String>,
+        sleep_time: Duration,
     ) -> AnyResult<Self> {
-        let authorization = authorization
-            .map(|authorization| match authorization {
-                Authorization::SecretToken(token) => format!("Bearer {}", token),
-                Authorization::ApiKey(key) => {
-                    format!(
-                        "ApiKey {}",
-                        base64::encode(format!("{}:{}", key.id, key.key))
-                    )
-                }
-            })
-            .map(Arc::new);
+        let authorization = authorization.map(|authorization| match authorization {
+            Authorization::SecretToken(token) => format!("Bearer {}", token),
+            Authorization::ApiKey(key) => {
+                format!(
+                    "ApiKey {}",
+                    base64::encode(format!("{}:{}", key.id, key.key))
+                )
+            }
+        });
 
         let mut client_builder = reqwest::ClientBuilder::new();
         if allow_invalid_certs {
@@ -86,26 +84,52 @@ impl ApmClient {
         }
         if let Some(path) = root_cert_path {
             let mut buff = Vec::new();
-            std::fs::File::open(&path)?
-                  .read_to_end(&mut buff)?;
+            std::fs::File::open(&path)?.read_to_end(&mut buff)?;
             let cert = reqwest::Certificate::from_pem(&buff)?;
             client_builder = client_builder.add_root_certificate(cert);
         }
 
         let client = client_builder.build()?;
-        Ok(ApmClient {
-            apm_address: Arc::new(apm_address),
+
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+
+        let buf = Arc::clone(&buffer);
+        tokio::spawn(start_processor(
+            apm_address,
             authorization,
             client,
-        })
+            buf,
+            sleep_time,
+        ));
+
+        Ok(ApmClient { buffer })
     }
 
     pub fn send_batch(&self, batch: Batch) {
-        let client = self.client.clone();
-        let apm_address = self.apm_address.clone();
-        let authorization = self.authorization.clone();
+        let mut buf = self.buffer.lock().unwrap();
+        (*buf).push(batch);
+    }
+}
 
-        tokio::spawn(async move {
+async fn start_processor(
+    apm_address: String,
+    authorization: Option<String>,
+    client: Client,
+    buffer: Arc<Mutex<Vec<Batch>>>,
+    sleep_time: Duration,
+) {
+    loop {
+        let batches_to_process: Vec<_> = {
+            let mut buf = buffer.lock().unwrap();
+            (*buf).drain(..).collect()
+        };
+
+        if batches_to_process.is_empty() {
+            sleep(sleep_time).await;
+            continue;
+        }
+
+        for batch in batches_to_process.iter() {
             let mut request = client
                 .post(&format!("{}/intake/v2/events", apm_address))
                 .header(
@@ -114,14 +138,14 @@ impl ApmClient {
                 )
                 .body(batch.to_string());
 
-            if let Some(authorization) = &authorization {
-                request = request.header(header::AUTHORIZATION, authorization.deref());
+            if let Some(authorization) = authorization.clone() {
+                request = request.header(header::AUTHORIZATION, authorization);
             }
 
             let result = request.send().await;
             if let Err(error) = result {
                 error!(error = %error, "Error sending batch to APM!");
             }
-        });
+        }
     }
 }

@@ -1,5 +1,7 @@
 //! Layer configuration.
 
+use tokio::time::Duration;
+
 use crate::model::{Cloud, Framework, Language, Process, Runtime, ServiceNode, System, User};
 
 /// Name for the trace id field, if one needs to be supplied manually.
@@ -62,12 +64,14 @@ pub struct Config {
     pub(crate) cloud: Option<Cloud>,
     pub(crate) allow_invalid_certs: bool,
     pub(crate) root_cert_path: Option<String>,
+    pub(crate) sleep_time: Duration,
 }
 
 impl Config {
     pub fn new(apm_address: String) -> Self {
         Config {
             apm_address,
+            sleep_time: Duration::from_millis(1000),
             ..Default::default()
         }
     }
@@ -109,6 +113,11 @@ impl Config {
 
     pub fn with_cloud(mut self, cloud: Cloud) -> Self {
         self.cloud = Some(cloud);
+        self
+    }
+
+    pub fn with_sleep_time(mut self, sleep_time: Duration) -> Self {
+        self.sleep_time = sleep_time;
         self
     }
 }

@@ -260,6 +260,7 @@ impl ApmLayer {
                 config.authorization,
                 config.allow_invalid_certs,
                 config.root_cert_path,
+                config.sleep_time,
             )?,
             metadata: json!(metadata),
         })
