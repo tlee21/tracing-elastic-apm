@@ -1,6 +1,10 @@
 # Changelog
 
-## [x.y.z]
+## [3.2.0]
+
+- Fixed `tracing-subscriber` compatibility.
+
+## [3.1.0]
 
 - Added support for specifying custom trace id to new spans via `config::TRACE_ID_FIELD_NAME` field.
 

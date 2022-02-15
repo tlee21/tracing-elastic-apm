@@ -37,7 +37,7 @@ impl<S> Layer<S> for ApmLayer
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
-    fn new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
